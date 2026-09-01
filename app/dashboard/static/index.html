@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionClick Agent — Dashboard</title>
+    <meta name="description" content="Real-time monitoring dashboard for VisionClick autonomous vision agent">
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">👁️</span>
+                <h1>VisionClick Agent</h1>
+            </div>
+            <div class="status-badge" id="status-badge">
+                <span class="status-dot"></span>
+                <span id="agent-status">IDLE</span>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Current Task Card -->
+            <div class="card card-wide">
+                <h2>Current Task</h2>
+                <div class="task-info">
+                    <div class="info-row">
+                        <span class="label">Task ID:</span>
+                        <span id="current-task" class="value">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Statement:</span>
+                        <span id="current-statement" class="value">—</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">Video Progress:</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="video-progress" style="width:0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Cards -->
+            <div class="card">
+                <h2>Tasks</h2>
+                <div class="metric-value" id="tasks-completed">0</div>
+                <div class="metric-label">Completed</div>
+            </div>
+            <div class="card">
+                <h2>Accuracy</h2>
+                <div class="metric-value" id="accuracy">—</div>
+                <div class="metric-label">Correct / Total</div>
+            </div>
+            <div class="card">
+                <h2>Avg Latency</h2>
+                <div class="metric-value" id="avg-latency">—</div>
+                <div class="metric-label">ms per task</div>
+            </div>
+            <div class="card">
+                <h2>Tasks/Hour</h2>
+                <div class="metric-value" id="tasks-per-hour">—</div>
+                <div class="metric-label">throughput</div>
+            </div>
+            <div class="card">
+                <h2>Frames</h2>
+                <div class="metric-value" id="frames-analyzed">0</div>
+                <div class="metric-label">Analyzed</div>
+            </div>
+            <div class="card">
+                <h2>Errors</h2>
+                <div class="metric-value error-value" id="error-count">0</div>
+                <div class="metric-label">Total</div>
+            </div>
+
+            <!-- Decisions Table -->
+            <div class="card card-full">
+                <h2>Recent Decisions</h2>
+                <div class="table-wrapper">
+                    <table id="decisions-table">
+                        <thead>
+                            <tr>
+                                <th>Task</th>
+                                <th>Statement</th>
+                                <th>Decision</th>
+                                <th>Confidence</th>
+                                <th>Level</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="decisions-body">
+                            <tr><td colspan="6" class="empty">No decisions yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Evidence Panel -->
+            <div class="card card-full">
+                <h2>Latest Evidence</h2>
+                <div id="evidence-panel" class="evidence-panel">
+                    <p class="empty">Waiting for analysis...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

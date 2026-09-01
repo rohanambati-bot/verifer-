@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionClick Copilot</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="brand">
+                <span class="icon">👁️</span>
+                <h1>VisionClick</h1>
+            </div>
+            <div class="backend-status" id="backend-status">
+                <span class="dot"></span>
+                <span id="backend-text">Checking...</span>
+            </div>
+        </header>
+
+        <section class="controls">
+            <button id="btn-analyze" class="btn-primary" type="button">
+                <span class="btn-icon">⚡</span>
+                <span id="btn-text">Analyze Active Page</span>
+            </button>
+
+            <button id="btn-autopilot" class="btn-autopilot" type="button">
+                <span class="btn-icon">🤖</span>
+                <span id="autopilot-text">Start Continuous Autopilot</span>
+            </button>
+
+            <div class="settings-row">
+                <label class="toggle-container">
+                    <input type="checkbox" id="auto-select-toggle" checked>
+                    <span class="toggle-switch"></span>
+                    <span class="toggle-label">Auto-select on page</span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <label class="toggle-container">
+                    <input type="checkbox" id="auto-submit-toggle" checked>
+                    <span class="toggle-switch"></span>
+                    <span class="toggle-label">Auto-submit when complete</span>
+                </label>
+            </div>
+
+            <div class="settings-row">
+                <span class="toggle-label">Loop Delay (seconds):</span>
+                <input type="number" id="loop-delay-input" value="2" min="1" max="15" class="delay-input">
+            </div>
+        </section>
+
+
+        <div id="status-message" class="status-message hidden"></div>
+
+        <section class="results-section" id="results-section">
+            <div class="section-header">
+                <h2>Predictions & Evidence</h2>
+                <span id="results-count" class="badge">0 items</span>
+            </div>
+            <div id="results-list" class="results-list">
+                <div class="empty-state">
+                    <p>Open an annotation task in your active tab and click <strong>Analyze Active Page</strong>.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span>Backend: <strong id="backend-url">http://127.0.0.1:8000</strong></span>
+        </footer>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

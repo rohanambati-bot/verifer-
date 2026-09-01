@@ -1,0 +1,49 @@
+[
+  {
+    "task_id": "demo_001",
+    "video": "demo_001.mp4",
+    "statements": [
+      {"id": 1, "text": "hold pan with left hand", "answer": true},
+      {"id": 2, "text": "scrub pan with steel wool in right hand", "answer": true},
+      {"id": 3, "text": "place mug in basin with right hand", "answer": false}
+    ]
+  },
+  {
+    "task_id": "demo_002",
+    "video": "demo_002.mp4",
+    "statements": [
+      {"id": 1, "text": "hold mug with right hand", "answer": true},
+      {"id": 2, "text": "place mug on counter with right hand", "answer": true},
+      {"id": 3, "text": "wipe counter with towel in left hand", "answer": false}
+    ]
+  },
+  {
+    "task_id": "demo_003",
+    "video": "demo_003.mp4",
+    "statements": [
+      {"id": 1, "text": "pick up plate with left hand", "answer": false},
+      {"id": 2, "text": "wash plate with sponge in right hand", "answer": true},
+      {"id": 3, "text": "hold plate with left hand", "answer": true}
+    ]
+  },
+  {
+    "task_id": "demo_004",
+    "video": "demo_004.mp4",
+    "statements": [
+      {"id": 1, "text": "open faucet with right hand", "answer": true},
+      {"id": 2, "text": "hold pot with left hand", "answer": true},
+      {"id": 3, "text": "scrub pot with sponge in right hand", "answer": false},
+      {"id": 4, "text": "place pot on counter with left hand", "answer": true}
+    ]
+  },
+  {
+    "task_id": "demo_005",
+    "video": "demo_005.mp4",
+    "statements": [
+      {"id": 1, "text": "pick up knife with right hand", "answer": true},
+      {"id": 2, "text": "cut vegetable on cutting board with right hand", "answer": true},
+      {"id": 3, "text": "hold vegetable with left hand", "answer": true},
+      {"id": 4, "text": "place knife in basin with right hand", "answer": false}
+    ]
+  }
+]

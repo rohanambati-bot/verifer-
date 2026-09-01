@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Annotation Task</title>
+    <meta name="description" content="Video annotation task - verify hand actions">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <main role="main" id="task-container" class="task-container" data-testid="task-container">
+        <div class="task-header">
+            <h1>Video Annotation Task</h1>
+            <span id="task-id" data-testid="task-id" data-task-id=""></span>
+        </div>
+
+        <div class="video-section">
+            <video id="task-video" data-testid="task-video"
+                   controls autoplay muted loop
+                   width="640" height="480">
+                <source src="" type="video/mp4">
+                Your browser does not support video.
+            </video>
+        </div>
+
+        <div class="instructions">
+            <h2>Verify what the hands are doing</h2>
+            <p>For each statement, indicate whether it accurately describes the action in the video.</p>
+        </div>
+
+        <div id="statements-list" class="statements-list" role="list">
+            <!-- Statements injected by JS -->
+        </div>
+
+        <div class="submit-section">
+            <button id="submit-btn" data-testid="submit-button"
+                    class="submit-button" type="button"
+                    onclick="submitTask()">
+                Submit and continue
+            </button>
+        </div>
+
+        <div id="feedback" class="feedback hidden"></div>
+    </main>
+
+    <script id="task-data-script" type="application/json">/*TASK_DATA*/</script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

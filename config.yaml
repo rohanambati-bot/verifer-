@@ -1,0 +1,28 @@
+browser:
+  headless: false
+  slow_mo: 0
+
+agent:
+  dry_run: true
+  auto_submit: false
+  max_tasks: 10
+  max_runtime_minutes: 60
+  poll_interval: 2
+
+vision:
+  provider: mock
+  sample_fps: 4
+  high_confidence: 0.90
+  review_threshold: 0.75
+
+performance:
+  workers: 4
+  enable_cache: true
+  adaptive_sampling: true
+
+dashboard:
+  host: 127.0.0.1
+  port: 8000
+
+demo:
+  url: http://127.0.0.1:3000
