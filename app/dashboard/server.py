@@ -217,17 +217,16 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                 )
                 decisions_result.append(decision.to_dict())
         else:
-            # Real external task: run real Local VLM or OpenCV vision analyzer
-            for stmt in raw_statements:
+            # Real external task: run parallel Local VLM / OpenCV vision analyzer
+            async def eval_single_stmt(stmt):
                 stmt_id = stmt.get("id", 1)
                 stmt_text = stmt.get("text", "")
-                
+
                 if has_ollama and decoded_frames:
                     is_true, conf, reason = await local_provider.evaluate_statement_vlm(stmt_text, decoded_frames)
                 elif decoded_frames:
                     is_true, conf, reason = local_provider.evaluate_statement_cv(stmt_text, decoded_frames)
                 else:
-                    # Parse statement rules as fallback
                     parsed = parser.parse(stmt_text)
                     is_true = True
                     conf = 0.82
@@ -236,7 +235,7 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                 action_label = "👍" if is_true else "👎"
                 conf_level = "high" if conf >= 0.85 else ("medium" if conf >= 0.70 else "uncertain")
 
-                decisions_result.append({
+                return {
                     "statement_id": stmt_id,
                     "statement_text": stmt_text,
                     "answer": is_true,
@@ -248,7 +247,9 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                     "evidence_count": len(decoded_frames),
                     "evidence": [{"reason": reason, "score": conf, "start": 0.0, "end": 2.0}],
                     "is_second_pass": False,
-                })
+                }
+
+            decisions_result = await asyncio.gather(*(eval_single_stmt(s) for s in raw_statements))
 
         # Save to database if available
         if repo:

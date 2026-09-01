@@ -64,7 +64,7 @@
     });
 
     loopDelayInput.addEventListener('change', () => {
-        chrome.storage.local.set({ loopDelay: parseInt(loopDelayInput.value, 10) || 2 });
+        chrome.storage.local.set({ loopDelay: parseFloat(loopDelayInput.value) || 0.2 });
     });
 
     function setAutopilotUI(isRunning) {
@@ -163,7 +163,7 @@
 
         await chrome.tabs.sendMessage(tab.id, {
             action: newState ? 'START_AUTOPILOT' : 'STOP_AUTOPILOT',
-            delay: parseInt(loopDelayInput.value, 10) || 2,
+            delay: parseFloat(loopDelayInput.value) || 0.2,
             autoSubmit: autoSubmitToggle.checked
         });
     });

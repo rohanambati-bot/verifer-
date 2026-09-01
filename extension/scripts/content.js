@@ -117,30 +117,27 @@
     }
 
     /**
-     * Single step in the continuous loop.
+     * Single step in the continuous loop (Turbo Speed).
      */
     async function runAutopilotStep() {
         if (!isAutopilotRunning) return;
 
-        updateHudStatus('Extracting statements...');
         const pageData = await extractPageData();
 
         if (!pageData.statements || pageData.statements.length === 0) {
-            updateHudStatus('Waiting for next task...');
-            // Retry after delay in case page is still loading
-            autopilotTimer = setTimeout(runAutopilotStep, autopilotDelayMs);
+            updateHudStatus('Waiting for task...');
+            autopilotTimer = setTimeout(runAutopilotStep, 200);
             return;
         }
 
         // Avoid re-submitting the exact same task if DOM hasn't transitioned yet
         if (pageData.task_id && pageData.task_id === lastProcessedTaskId) {
-            updateHudStatus('Waiting for task transition...');
-            autopilotTimer = setTimeout(runAutopilotStep, 1500);
+            waitForNextTask();
             return;
         }
 
         try {
-            updateHudStatus(`Analyzing Task: ${pageData.task_id} (${pageData.statements.length} items)...`);
+            updateHudStatus(`⚡ Analyzing ${pageData.statements.length} items...`);
 
             const response = await fetch(`${backendUrl}/api/extension/analyze`, {
                 method: 'POST',
@@ -160,26 +157,58 @@
             const result = await response.json();
             const decisions = result.decisions || [];
 
-            updateHudStatus(`Applying ${decisions.length} predictions...`);
+            updateHudStatus(`⚡ Clicking ${decisions.length} predictions...`);
             await applyDecisions(decisions);
             processedTaskCount++;
             lastProcessedTaskId = pageData.task_id;
 
             if (autoSubmitEnabled) {
-                updateHudStatus(`Submitting task #${processedTaskCount}...`);
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 60));
                 triggerSubmit();
+                updateHudStatus(`✅ Submitted #${processedTaskCount}! Loading next...`);
+                // Actively watch for next task transition immediately
+                waitForNextTask();
+            } else {
+                updateHudStatus(`Task #${processedTaskCount} complete.`);
+                autopilotTimer = setTimeout(runAutopilotStep, Math.max(autopilotDelayMs, 300));
             }
-
-            // Schedule next task check
-            updateHudStatus(`Completed task #${processedTaskCount}. Next in ${autopilotDelayMs / 1000}s...`);
-            autopilotTimer = setTimeout(runAutopilotStep, autopilotDelayMs + 1000);
 
         } catch (err) {
             console.error('[VisionClick] Autopilot step failed:', err);
             updateHudStatus(`Error: ${err.message}. Retrying...`);
-            autopilotTimer = setTimeout(runAutopilotStep, 3000);
+            autopilotTimer = setTimeout(runAutopilotStep, 1000);
         }
+    }
+
+    /**
+     * Fast-polls the DOM (every 75ms) to detect when the next task or statements load.
+     */
+    function waitForNextTask() {
+        if (!isAutopilotRunning) return;
+        clearTimeout(autopilotTimer);
+
+        let checks = 0;
+        const maxChecks = 40; // up to 3 seconds max
+        const interval = setInterval(async () => {
+            if (!isAutopilotRunning) {
+                clearInterval(interval);
+                return;
+            }
+
+            checks++;
+            const currentData = await extractPageData();
+            const hasNewTask = currentData.task_id && currentData.task_id !== lastProcessedTaskId;
+            const hasStatements = currentData.statements && currentData.statements.length > 0;
+
+            if (hasNewTask && hasStatements) {
+                clearInterval(interval);
+                runAutopilotStep();
+            } else if (checks >= maxChecks) {
+                clearInterval(interval);
+                lastProcessedTaskId = null; // force retry
+                runAutopilotStep();
+            }
+        }, 75);
     }
 
     /**
@@ -419,8 +448,8 @@
                 await clickElement(btn);
                 highlightSelection(btn, isTrue);
                 applied.push({ statement_id: decision.statement_id, clicked: true });
-                // Small delay to allow React / Next.js state machine to update and flush UI
-                await new Promise(r => setTimeout(r, 140));
+                // Micro delay for React state flush
+                await new Promise(r => setTimeout(r, 25));
             }
         }
 
@@ -449,8 +478,8 @@
             child.dispatchEvent(new MouseEvent('mousedown', eventInit));
         }
 
-        // Realistic tap delay (35ms)
-        await new Promise(r => setTimeout(r, 35));
+        // Fast tap delay (8ms)
+        await new Promise(r => setTimeout(r, 8));
 
         // Pointer & Mouse Up sequence
         el.dispatchEvent(new PointerEvent('pointerup', eventInit));
