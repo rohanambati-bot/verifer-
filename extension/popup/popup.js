@@ -24,19 +24,35 @@
     const resultsListEl = document.getElementById('results-list');
     const resultsCountEl = document.getElementById('results-count');
 
-    // Load saved preferences
-    chrome.storage.local.get(['autoSelect', 'autoSubmit', 'loopDelay', 'autopilotRunning', 'backendUrl'], (res) => {
-        if (typeof res.autoSelect === 'boolean') autoSelectToggle.checked = res.autoSelect;
-        if (typeof res.autoSubmit === 'boolean') autoSubmitToggle.checked = res.autoSubmit;
-        if (res.loopDelay) loopDelayInput.value = res.loopDelay;
-        if (res.backendUrl) {
-            activeBackendUrl = res.backendUrl;
-            if (backendUrlEl) backendUrlEl.textContent = activeBackendUrl;
+    let currentTabOrigin = '';
+    let currentTabId = null;
+
+    // Load saved preferences and check active tab origin
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs && tabs[0];
+        if (tab && tab.url) {
+            try {
+                currentTabOrigin = new URL(tab.url).origin;
+                currentTabId = tab.id;
+            } catch (e) {}
         }
-        if (res.autopilotRunning) {
-            setAutopilotUI(true);
-        }
-        checkBackendHealth();
+
+        chrome.storage.local.get(['autoSelect', 'autoSubmit', 'loopDelay', 'autopilotRunning', 'autopilotOrigin', 'backendUrl'], (res) => {
+            if (typeof res.autoSelect === 'boolean') autoSelectToggle.checked = res.autoSelect;
+            if (typeof res.autoSubmit === 'boolean') autoSubmitToggle.checked = res.autoSubmit;
+            if (res.loopDelay) loopDelayInput.value = res.loopDelay;
+            if (res.backendUrl) {
+                activeBackendUrl = res.backendUrl;
+                if (backendUrlEl) backendUrlEl.textContent = activeBackendUrl;
+            }
+            // Strictly check if autopilot is active on THIS tab's origin
+            if (res.autopilotRunning && res.autopilotOrigin && res.autopilotOrigin === currentTabOrigin) {
+                setAutopilotUI(true);
+            } else {
+                setAutopilotUI(false);
+            }
+            checkBackendHealth();
+        });
     });
 
     autoSelectToggle.addEventListener('change', () => {
@@ -55,7 +71,7 @@
         if (isRunning) {
             btnAutopilot.className = 'btn-autopilot running';
             autopilotText.textContent = '⏹ Stop Continuous Autopilot';
-            showStatus('Autopilot Active — continuously analyzing & submitting tasks...', 'success');
+            showStatus('Autopilot Active on this website — analyzing & submitting tasks...', 'success');
         } else {
             btnAutopilot.className = 'btn-autopilot';
             autopilotText.textContent = '🤖 Start Continuous Autopilot';
@@ -80,7 +96,6 @@
                         backendStatusEl.className = 'backend-status online';
                         backendTextEl.textContent = 'Backend Online';
                         if (backendUrlEl) backendUrlEl.textContent = activeBackendUrl;
-                        chrome.storage.local.set({ backendUrl: activeBackendUrl });
                         return true;
                     }
                 }
@@ -109,28 +124,48 @@
         btnText.textContent = isLoading ? 'Analyzing Video...' : 'Analyze Active Page';
     }
 
-    // Autopilot Toggle Button
+    // Autopilot Toggle Button (Strictly Tab & Origin Scoped)
     btnAutopilot.addEventListener('click', async () => {
-        const { autopilotRunning = false } = await chrome.storage.local.get('autopilotRunning');
-        const newState = !autopilotRunning;
-        await chrome.storage.local.set({ autopilotRunning: newState });
-        setAutopilotUI(newState);
-
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab && tab.id) {
-            try {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['scripts/content.js']
-                });
-            } catch (e) {}
-
-            await chrome.tabs.sendMessage(tab.id, {
-                action: newState ? 'START_AUTOPILOT' : 'STOP_AUTOPILOT',
-                delay: parseInt(loopDelayInput.value, 10) || 2,
-                autoSubmit: autoSubmitToggle.checked
-            });
+        if (!tab || !tab.id || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+            showStatus('Autopilot cannot run on internal browser pages.', 'error');
+            return;
         }
+
+        const tabOrigin = new URL(tab.url).origin;
+        const { autopilotRunning = false, autopilotOrigin = '' } = await chrome.storage.local.get(['autopilotRunning', 'autopilotOrigin']);
+        
+        const isRunningOnThisOrigin = autopilotRunning && autopilotOrigin === tabOrigin;
+        const newState = !isRunningOnThisOrigin;
+
+        if (newState) {
+            await chrome.storage.local.set({ 
+                autopilotRunning: true, 
+                autopilotOrigin: tabOrigin,
+                autopilotTabId: tab.id
+            });
+            setAutopilotUI(true);
+        } else {
+            await chrome.storage.local.set({ 
+                autopilotRunning: false, 
+                autopilotOrigin: null,
+                autopilotTabId: null
+            });
+            setAutopilotUI(false);
+        }
+
+        try {
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['scripts/content.js']
+            });
+        } catch (e) {}
+
+        await chrome.tabs.sendMessage(tab.id, {
+            action: newState ? 'START_AUTOPILOT' : 'STOP_AUTOPILOT',
+            delay: parseInt(loopDelayInput.value, 10) || 2,
+            autoSubmit: autoSubmitToggle.checked
+        });
     });
 
     // Main single-analyze flow

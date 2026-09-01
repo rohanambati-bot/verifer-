@@ -18,12 +18,14 @@
     let autopilotTimer = null;
     let floatingHud = null;
 
-    // Check if Autopilot was already running before page reload
-    chrome.storage.local.get(['autopilotRunning', 'loopDelay', 'autoSubmit', 'backendUrl'], (res) => {
+    // Check if Autopilot was enabled specifically for this website origin
+    chrome.storage.local.get(['autopilotRunning', 'autopilotOrigin', 'loopDelay', 'autoSubmit', 'backendUrl'], (res) => {
         if (res.backendUrl) {
             backendUrl = res.backendUrl;
         }
-        if (res.autopilotRunning) {
+        const currentOrigin = window.location.origin;
+        // Strictly only auto-resume if this website's origin matches the enabled origin
+        if (res.autopilotRunning && res.autopilotOrigin && res.autopilotOrigin === currentOrigin) {
             autopilotDelayMs = (res.loopDelay || 2) * 1000;
             autoSubmitEnabled = res.autoSubmit !== false;
             startAutopilot(autopilotDelayMs, autoSubmitEnabled);
@@ -81,13 +83,16 @@
     });
 
     /**
-     * Start continuous autopilot loop.
+     * Start continuous autopilot loop (origin-scoped).
      */
     function startAutopilot(delayMs, autoSubmit) {
         isAutopilotRunning = true;
         autopilotDelayMs = delayMs;
         autoSubmitEnabled = autoSubmit;
-        chrome.storage.local.set({ autopilotRunning: true });
+        chrome.storage.local.set({ 
+            autopilotRunning: true,
+            autopilotOrigin: window.location.origin
+        });
 
         createFloatingHud();
         updateHudStatus('Starting analysis...');
@@ -103,7 +108,10 @@
     function stopAutopilot() {
         isAutopilotRunning = false;
         clearTimeout(autopilotTimer);
-        chrome.storage.local.set({ autopilotRunning: false });
+        chrome.storage.local.set({ 
+            autopilotRunning: false,
+            autopilotOrigin: null
+        });
         removeFloatingHud();
         console.log('[VisionClick] Autopilot stopped.');
     }
