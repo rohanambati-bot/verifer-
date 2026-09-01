@@ -347,7 +347,9 @@
         let cleaned = raw
             .replace(/[👍👎]/g, ' ')
             .replace(/thumbs\s*(?:up|down)/gi, ' ')
-            .replace(/^\s*\d+[\.\)\:\-]\s*/, '') // Remove "1. ", "3 ", "4) "
+            .replace(/wrong\s*(?:object|action|hand)/gi, ' ')
+            .replace(/^Clause\s*\d+\s*\d*/i, '')
+            .replace(/^\s*\d+[\.\)\:\-]?\s*/, '') // Remove "1. ", "3 ", "4) "
             .replace(/^\s*#\d+\s*[\:\-]?\s*/, '') // Remove "#1: "
             .replace(/\s+/g, ' ')
             .trim();
