@@ -477,13 +477,59 @@
             if (btn) {
                 await clickElement(btn);
                 highlightSelection(btn, isTrue);
+
+                // If FALSE (Thumbs Down), auto-select the reason from the Atlas Capture popup menu
+                if (!isTrue) {
+                    await selectFalseReason(row, btn, decision.sub_reason);
+                }
+
                 applied.push({ statement_id: decision.statement_id, clicked: true });
                 // Micro delay for React state flush
-                await new Promise(r => setTimeout(r, 25));
+                await new Promise(r => setTimeout(r, 30));
             }
         }
 
         return applied;
+    }
+
+    /**
+     * Automatically handles the "IF WRONG, TELL US WHY" dropdown menu on Atlas Capture.
+     * Selects: "Wrong object", "Wrong action", or "Wrong hand".
+     */
+    async function selectFalseReason(row, btn, subReason = 'wrong_action') {
+        // Wait 40ms for the floating menu/popover to render in the DOM
+        await new Promise(r => setTimeout(r, 40));
+
+        const subReasonMap = {
+            'wrong_object': ['wrong object', 'object'],
+            'wrong_action': ['wrong action', 'action'],
+            'wrong_hand': ['wrong hand', 'hand']
+        };
+
+        const targetKeywords = subReasonMap[subReason] || ['wrong action', 'wrong object', 'wrong hand'];
+
+        // Search for the dropdown option elements in the document
+        const candidates = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], button, li, div[class*="item"], div[class*="menu"], div[class*="popover"], div[class*="dropdown"], a, span, p'))
+            .filter(el => {
+                const txt = (el.innerText || '').trim().toLowerCase();
+                return txt === 'wrong object' || txt === 'wrong action' || txt === 'wrong hand';
+            });
+
+        if (candidates.length > 0) {
+            let matched = null;
+            for (const kw of targetKeywords) {
+                matched = candidates.find(el => (el.innerText || '').toLowerCase().includes(kw));
+                if (matched) break;
+            }
+            if (!matched) {
+                matched = candidates[0];
+            }
+
+            if (matched) {
+                await clickElement(matched);
+                await new Promise(r => setTimeout(r, 20));
+            }
+        }
     }
 
     /**

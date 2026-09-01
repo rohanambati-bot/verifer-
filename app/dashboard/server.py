@@ -235,6 +235,17 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                 action_label = "👍" if is_true else "👎"
                 conf_level = "high" if conf >= 0.85 else ("medium" if conf >= 0.70 else "uncertain")
 
+                sub_reason = None
+                if not is_true:
+                    stmt_lower = stmt_text.lower()
+                    reason_lower = reason.lower()
+                    if "hand" in reason_lower or ("left hand" in stmt_lower or "right hand" in stmt_lower) and "hand" in reason_lower:
+                        sub_reason = "wrong_hand"
+                    elif any(w in reason_lower for w in ["object", "bowl", "pan", "knife", "faucet", "cloth", "shoe", "dough", "peppers", "scallion", "pot", "cup"]):
+                        sub_reason = "wrong_object"
+                    else:
+                        sub_reason = "wrong_action"
+
                 return {
                     "statement_id": stmt_id,
                     "statement_text": stmt_text,
@@ -244,6 +255,7 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                     "action_label": action_label,
                     "confidence_level": conf_level,
                     "explanation": reason,
+                    "sub_reason": sub_reason,
                     "evidence_count": len(decoded_frames),
                     "evidence": [{"reason": reason, "score": conf, "start": 0.0, "end": 2.0}],
                     "is_second_pass": False,
