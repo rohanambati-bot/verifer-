@@ -217,34 +217,17 @@ def create_dashboard_app(db: Optional[Database] = None) -> Any:
                 )
                 decisions_result.append(decision.to_dict())
         else:
-            # Real external task: run parallel Local VLM / OpenCV vision analyzer
+            # Real external task: run parallel Multimodal / Computer Vision analyzer
             async def eval_single_stmt(stmt):
                 stmt_id = stmt.get("id", 1)
                 stmt_text = stmt.get("text", "")
 
-                if has_ollama and decoded_frames:
-                    is_true, conf, reason = await local_provider.evaluate_statement_vlm(stmt_text, decoded_frames)
-                elif decoded_frames:
-                    is_true, conf, reason = local_provider.evaluate_statement_cv(stmt_text, decoded_frames)
-                else:
-                    parsed = parser.parse(stmt_text)
-                    is_true = True
-                    conf = 0.82
-                    reason = f"Natural language predicate parsed: {parsed.action} on {parsed.primary_object}"
+                is_true, conf, reason, sub_reason = await local_provider.evaluate_statement(
+                    stmt_text, decoded_frames, raw_statements
+                )
 
                 action_label = "👍" if is_true else "👎"
                 conf_level = "high" if conf >= 0.85 else ("medium" if conf >= 0.70 else "uncertain")
-
-                sub_reason = None
-                if not is_true:
-                    stmt_lower = stmt_text.lower()
-                    reason_lower = reason.lower()
-                    if "hand" in reason_lower or ("left hand" in stmt_lower or "right hand" in stmt_lower) and "hand" in reason_lower:
-                        sub_reason = "wrong_hand"
-                    elif any(w in reason_lower for w in ["object", "bowl", "pan", "knife", "faucet", "cloth", "shoe", "dough", "peppers", "scallion", "pot", "cup"]):
-                        sub_reason = "wrong_object"
-                    else:
-                        sub_reason = "wrong_action"
 
                 return {
                     "statement_id": stmt_id,
