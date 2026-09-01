@@ -139,22 +139,13 @@
         try {
             updateHudStatus(`⚡ Analyzing ${pageData.statements.length} items...`);
 
-            const response = await fetch(`${backendUrl}/api/extension/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    task_id: pageData.task_id || 'autopilot_task',
-                    video_url: pageData.video_url || '',
-                    statements: pageData.statements,
-                    frames_base64: pageData.frames_base64 || []
-                })
+            const result = await analyzeTaskBackend({
+                task_id: pageData.task_id || 'autopilot_task',
+                video_url: pageData.video_url || '',
+                statements: pageData.statements,
+                frames_base64: pageData.frames_base64 || []
             });
 
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.status}`);
-            }
-
-            const result = await response.json();
             const decisions = result.decisions || [];
 
             updateHudStatus(`⚡ Clicking ${decisions.length} predictions...`);
@@ -174,10 +165,49 @@
             }
 
         } catch (err) {
-            console.error('[VisionClick] Autopilot step failed:', err);
-            updateHudStatus(`Error: ${err.message}. Retrying...`);
+            updateHudStatus(`Retrying: ${err.message || 'Connecting'}...`);
             autopilotTimer = setTimeout(runAutopilotStep, 1000);
         }
+    }
+
+    /**
+     * Executes backend analyze call via Background service worker (immune to Mixed Content / CORS) with direct fetch fallback.
+     */
+    async function analyzeTaskBackend(payload) {
+        try {
+            const resp = await new Promise((resolve) => {
+                chrome.runtime.sendMessage({
+                    action: 'ANALYZE_TASK',
+                    backendUrl: backendUrl,
+                    payload: payload
+                }, (response) => {
+                    if (chrome.runtime.lastError || !response) {
+                        resolve(null);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+
+            if (resp && resp.success && resp.data) {
+                return resp.data;
+            } else if (resp && resp.error) {
+                throw new Error(resp.error);
+            }
+        } catch (e) {
+            // Try direct fetch
+        }
+
+        const res = await fetch(`${backendUrl}/api/extension/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            throw new Error(`Server returned ${res.status}`);
+        }
+        return await res.json();
     }
 
     /**

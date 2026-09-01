@@ -212,25 +212,50 @@
 
             showStatus(`Analyzing ${pageData.statements.length} statements with VisionClick...`, 'info');
 
-            // 4. Send to VisionClick local backend
-            const response = await fetch(`${activeBackendUrl}/api/extension/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    task_id: pageData.task_id || 'active_tab_task',
-                    video_url: pageData.video_url || '',
-                    statements: pageData.statements,
-                    frames_base64: pageData.frames_base64 || []
-                })
-            });
+            // 4. Send to VisionClick local backend via Background Worker
+            let result = null;
+            try {
+                const bgResp = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({
+                        action: 'ANALYZE_TASK',
+                        backendUrl: activeBackendUrl,
+                        payload: {
+                            task_id: pageData.task_id || 'active_tab_task',
+                            video_url: pageData.video_url || '',
+                            statements: pageData.statements,
+                            frames_base64: pageData.frames_base64 || []
+                        }
+                    }, (response) => {
+                        resolve(response);
+                    });
+                });
 
+                if (bgResp && bgResp.success && bgResp.data) {
+                    result = bgResp.data;
+                } else if (bgResp && bgResp.error) {
+                    throw new Error(bgResp.error);
+                }
+            } catch (e) {}
 
-            if (!response.ok) {
-                const err = await response.text();
-                throw new Error(`Analysis failed (${response.status}): ${err}`);
+            if (!result) {
+                const response = await fetch(`${activeBackendUrl}/api/extension/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        task_id: pageData.task_id || 'active_tab_task',
+                        video_url: pageData.video_url || '',
+                        statements: pageData.statements,
+                        frames_base64: pageData.frames_base64 || []
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(`Analysis failed (${response.status}): ${err}`);
+                }
+                result = await response.json();
             }
 
-            const result = await response.json();
             const decisions = result.decisions || [];
 
             // 5. Render results in popup
