@@ -11,24 +11,29 @@
     window.__VISIONCLICK_INJECTED__ = true;
 
     let isAutopilotRunning = false;
-    let autopilotDelayMs = 2000;
+    let autopilotDelayMs = 200;
     let autoSubmitEnabled = true;
+    let autoRefreshIntervalSec = 100;
+    let autoRefreshTimer = null;
+    let emptyTaskConsecutiveCount = 0;
     let processedTaskCount = 0;
     let lastProcessedTaskId = null;
     let autopilotTimer = null;
     let floatingHud = null;
 
     // Check if Autopilot was enabled specifically for this website origin
-    chrome.storage.local.get(['autopilotRunning', 'autopilotOrigin', 'loopDelay', 'autoSubmit', 'backendUrl'], (res) => {
+    chrome.storage.local.get(['autopilotRunning', 'autopilotOrigin', 'loopDelay', 'autoSubmit', 'autoRefresh', 'refreshIntervalSec', 'backendUrl'], (res) => {
         if (res.backendUrl) {
             backendUrl = res.backendUrl;
         }
         const currentOrigin = window.location.origin;
         // Strictly only auto-resume if this website's origin matches the enabled origin
         if (res.autopilotRunning && res.autopilotOrigin && res.autopilotOrigin === currentOrigin) {
-            autopilotDelayMs = (res.loopDelay || 2) * 1000;
+            autopilotDelayMs = (res.loopDelay || 0.2) * 1000;
             autoSubmitEnabled = res.autoSubmit !== false;
-            startAutopilot(autopilotDelayMs, autoSubmitEnabled);
+            const autoRefresh = res.autoRefresh !== false;
+            const refreshSec = res.refreshIntervalSec || 100;
+            startAutopilot(autopilotDelayMs, autoSubmitEnabled, autoRefresh, refreshSec);
         }
     });
 
@@ -68,9 +73,11 @@
         }
 
         if (request.action === 'START_AUTOPILOT') {
-            autopilotDelayMs = (request.delay || 2) * 1000;
+            autopilotDelayMs = (request.delay || 0.2) * 1000;
             autoSubmitEnabled = request.autoSubmit !== false;
-            startAutopilot(autopilotDelayMs, autoSubmitEnabled);
+            const autoRefresh = request.autoRefresh !== false;
+            const refreshSec = request.refreshIntervalSec || 100;
+            startAutopilot(autopilotDelayMs, autoSubmitEnabled, autoRefresh, refreshSec);
             sendResponse({ status: 'started' });
             return true;
         }
@@ -85,21 +92,37 @@
     /**
      * Start continuous autopilot loop (origin-scoped).
      */
-    function startAutopilot(delayMs, autoSubmit) {
+    function startAutopilot(delayMs, autoSubmit, autoRefresh = true, refreshIntervalSec = 100) {
         isAutopilotRunning = true;
         autopilotDelayMs = delayMs;
         autoSubmitEnabled = autoSubmit;
+        autoRefreshIntervalSec = refreshIntervalSec || 100;
+
         chrome.storage.local.set({ 
             autopilotRunning: true,
-            autopilotOrigin: window.location.origin
+            autopilotOrigin: window.location.origin,
+            autoRefresh: autoRefresh,
+            refreshIntervalSec: autoRefreshIntervalSec
         });
 
         createFloatingHud();
-        updateHudStatus('Starting analysis...');
+        updateHudStatus(`Autopilot Active (${autoRefreshIntervalSec}s Refresh Armed)...`);
+
+        // Start periodic auto-refresh watchdog (every 100s by default)
+        clearInterval(autoRefreshTimer);
+        if (autoRefresh !== false) {
+            const intervalMs = Math.max(autoRefreshIntervalSec, 15) * 1000;
+            autoRefreshTimer = setInterval(() => {
+                if (isAutopilotRunning) {
+                    console.log('[VisionClick] Auto-refreshing page (periodic 100s interval)...');
+                    window.location.reload();
+                }
+            }, intervalMs);
+        }
 
         // Start initial step after short pause
         clearTimeout(autopilotTimer);
-        autopilotTimer = setTimeout(runAutopilotStep, 1000);
+        autopilotTimer = setTimeout(runAutopilotStep, 600);
     }
 
     /**
@@ -108,6 +131,7 @@
     function stopAutopilot() {
         isAutopilotRunning = false;
         clearTimeout(autopilotTimer);
+        clearInterval(autoRefreshTimer);
         chrome.storage.local.set({ 
             autopilotRunning: false,
             autopilotOrigin: null
@@ -117,18 +141,65 @@
     }
 
     /**
-     * Single step in the continuous loop (Turbo Speed).
+     * Finds any "Try again", "Retry", or "Reload" recovery button on the page.
+     */
+    function findRetryButton() {
+        const candidates = Array.from(document.querySelectorAll('button, [role="button"], a, div[class*="btn"]'))
+            .filter(el => {
+                if (isIgnoredContainer(el)) return false;
+                // Check if element is visible
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 && rect.height === 0) return false;
+                const txt = (el.innerText || '').trim().toLowerCase();
+                return txt === 'try again' || txt.includes('try again') || txt === 'retry' || txt.includes('reload segment');
+            });
+        return candidates.length > 0 ? candidates[0] : null;
+    }
+
+    /**
+     * Single step in the continuous loop (Turbo Speed + Auto-Recovery).
      */
     async function runAutopilotStep() {
         if (!isAutopilotRunning) return;
 
+        // 1. Auto-Detect & Click "Try again" if Atlas Capture is stuck on loading error
+        const retryBtn = findRetryButton();
+        if (retryBtn) {
+            updateHudStatus('⚡ Auto-clicking "Try again"...');
+            await clickElement(retryBtn);
+            autopilotTimer = setTimeout(runAutopilotStep, 600);
+            return;
+        }
+
         const pageData = await extractPageData();
 
         if (!pageData.statements || pageData.statements.length === 0) {
+            emptyTaskConsecutiveCount++;
+
+            // Check again for "Try again" button
+            const retryBtnAgain = findRetryButton();
+            if (retryBtnAgain) {
+                updateHudStatus('⚡ Auto-clicking "Try again"...');
+                await clickElement(retryBtnAgain);
+                emptyTaskConsecutiveCount = 0;
+                autopilotTimer = setTimeout(runAutopilotStep, 600);
+                return;
+            }
+
+            // Auto-recovery: If stuck waiting with no statements for > 6 seconds (~30 checks), refresh page
+            if (emptyTaskConsecutiveCount > 30) {
+                updateHudStatus('🔄 Stuck on loading — Auto-reloading page...');
+                emptyTaskConsecutiveCount = 0;
+                window.location.reload();
+                return;
+            }
+
             updateHudStatus('Waiting for task...');
             autopilotTimer = setTimeout(runAutopilotStep, 200);
             return;
         }
+
+        emptyTaskConsecutiveCount = 0;
 
         // Avoid re-submitting the exact same task if DOM hasn't transitioned yet
         if (pageData.task_id && pageData.task_id === lastProcessedTaskId) {
@@ -211,7 +282,7 @@
     }
 
     /**
-     * Fast-polls the DOM (every 75ms) to detect when the next task or statements load.
+     * Fast-polls the DOM (every 75ms) to detect when the next task or statements load, auto-recovering on "Try again".
      */
     function waitForNextTask() {
         if (!isAutopilotRunning) return;
@@ -222,6 +293,16 @@
         const interval = setInterval(async () => {
             if (!isAutopilotRunning) {
                 clearInterval(interval);
+                return;
+            }
+
+            // Auto-detect and click "Try again" if it appears while waiting for next segment
+            const retryBtn = findRetryButton();
+            if (retryBtn) {
+                clearInterval(interval);
+                updateHudStatus('⚡ Auto-clicking "Try again"...');
+                await clickElement(retryBtn);
+                autopilotTimer = setTimeout(runAutopilotStep, 600);
                 return;
             }
 

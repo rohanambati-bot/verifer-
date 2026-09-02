@@ -20,6 +20,8 @@
     const loopDelayInput = document.getElementById('loop-delay-input');
     const autoSelectToggle = document.getElementById('auto-select-toggle');
     const autoSubmitToggle = document.getElementById('auto-submit-toggle');
+    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+    const refreshIntervalInput = document.getElementById('refresh-interval-input');
     const statusMessageEl = document.getElementById('status-message');
     const resultsListEl = document.getElementById('results-list');
     const resultsCountEl = document.getElementById('results-count');
@@ -37,9 +39,11 @@
             } catch (e) {}
         }
 
-        chrome.storage.local.get(['autoSelect', 'autoSubmit', 'loopDelay', 'autopilotRunning', 'autopilotOrigin', 'backendUrl'], (res) => {
+        chrome.storage.local.get(['autoSelect', 'autoSubmit', 'loopDelay', 'autoRefresh', 'refreshIntervalSec', 'autopilotRunning', 'autopilotOrigin', 'backendUrl'], (res) => {
             if (typeof res.autoSelect === 'boolean') autoSelectToggle.checked = res.autoSelect;
             if (typeof res.autoSubmit === 'boolean') autoSubmitToggle.checked = res.autoSubmit;
+            if (typeof res.autoRefresh === 'boolean' && autoRefreshToggle) autoRefreshToggle.checked = res.autoRefresh;
+            if (res.refreshIntervalSec && refreshIntervalInput) refreshIntervalInput.value = res.refreshIntervalSec;
             if (res.loopDelay) loopDelayInput.value = res.loopDelay;
             if (res.backendUrl) {
                 activeBackendUrl = res.backendUrl;
@@ -62,6 +66,18 @@
     autoSubmitToggle.addEventListener('change', () => {
         chrome.storage.local.set({ autoSubmit: autoSubmitToggle.checked });
     });
+
+    if (autoRefreshToggle) {
+        autoRefreshToggle.addEventListener('change', () => {
+            chrome.storage.local.set({ autoRefresh: autoRefreshToggle.checked });
+        });
+    }
+
+    if (refreshIntervalInput) {
+        refreshIntervalInput.addEventListener('change', () => {
+            chrome.storage.local.set({ refreshIntervalSec: parseInt(refreshIntervalInput.value, 10) || 100 });
+        });
+    }
 
     loopDelayInput.addEventListener('change', () => {
         chrome.storage.local.set({ loopDelay: parseFloat(loopDelayInput.value) || 0.2 });
@@ -164,7 +180,9 @@
         await chrome.tabs.sendMessage(tab.id, {
             action: newState ? 'START_AUTOPILOT' : 'STOP_AUTOPILOT',
             delay: parseFloat(loopDelayInput.value) || 0.2,
-            autoSubmit: autoSubmitToggle.checked
+            autoSubmit: autoSubmitToggle.checked,
+            autoRefresh: autoRefreshToggle ? autoRefreshToggle.checked : true,
+            refreshIntervalSec: refreshIntervalInput ? (parseInt(refreshIntervalInput.value, 10) || 100) : 100
         });
     });
 
