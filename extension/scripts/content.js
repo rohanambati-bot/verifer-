@@ -226,8 +226,12 @@
 
             if (autoSubmitEnabled) {
                 await new Promise(r => setTimeout(r, 60));
-                triggerSubmit();
-                updateHudStatus(`✅ Submitted #${processedTaskCount}! Loading next...`);
+                const submitted = await triggerSubmit();
+                if (submitted) {
+                    updateHudStatus(`✅ Submitted #${processedTaskCount}! Loading next...`);
+                } else {
+                    updateHudStatus(`Applied #${processedTaskCount}. Waiting for next...`);
+                }
                 // Actively watch for next task transition immediately
                 waitForNextTask();
             } else {
@@ -721,20 +725,22 @@
     /**
      * Finds and clicks the submit button on the webpage.
      */
-    function triggerSubmit() {
-        const submitBtn = findSubmitButton();
+    async function triggerSubmit() {
+        let submitBtn = findSubmitButton();
         if (!submitBtn) {
-            console.warn('[VisionClick] Submit button not found on page.');
+            // Wait up to 600ms for button to render / become enabled in React
+            for (let i = 0; i < 6; i++) {
+                await new Promise(r => setTimeout(r, 100));
+                submitBtn = findSubmitButton();
+                if (submitBtn) break;
+            }
+        }
+
+        if (!submitBtn) {
             return false;
         }
 
-        console.log('[VisionClick] Auto-submitting task...');
-        submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        setTimeout(() => {
-            clickElement(submitBtn);
-        }, 300);
-
+        await clickElement(submitBtn);
         return true;
     }
 
@@ -742,31 +748,30 @@
      * Detects the submit/next button using semantic and text selectors.
      */
     function findSubmitButton() {
-        const selectors = [
-            'button[data-testid="submit-button"]',
-            '#submit-btn',
-            'button[type="submit"]',
-            '.submit-button',
-            '.btn-submit',
-            'button.submit',
-            'button.primary'
+        const priorityKeywords = [
+            'submit and continue',
+            'submit & continue',
+            'submit segment',
+            'submit',
+            'continue',
+            'next segment',
+            'complete',
+            'save & continue'
         ];
 
-        for (const sel of selectors) {
-            const el = document.querySelector(sel);
-            if (el && !isIgnoredContainer(el)) {
-                const txt = (el.innerText || el.value || '').toLowerCase();
-                if (txt.includes('submit') || txt.includes('next') || txt.includes('save') || txt.includes('continue') || txt.includes('complete')) {
-                    return el;
-                }
-            }
-        }
+        const allButtons = Array.from(document.querySelectorAll('button, input[type="submit"], [role="button"], a, div[class*="btn"], div[class*="button"]'))
+            .filter(b => {
+                if (isIgnoredContainer(b)) return false;
+                const rect = b.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+            });
 
-        const allButtons = Array.from(document.querySelectorAll('button, input[type="submit"], [role="button"]')).filter(b => !isIgnoredContainer(b));
-        for (const btn of allButtons) {
-            const txt = (btn.innerText || btn.value || '').toLowerCase();
-            if (txt.includes('submit and continue') || txt.includes('submit') || txt.includes('continue') || txt.includes('next') || txt.includes('complete') || txt.includes('save & continue')) {
-                return btn;
+        for (const kw of priorityKeywords) {
+            for (const btn of allButtons) {
+                const txt = (btn.innerText || btn.value || btn.getAttribute('aria-label') || '').toLowerCase().trim();
+                if (txt === kw || txt.includes(kw)) {
+                    return btn;
+                }
             }
         }
 
