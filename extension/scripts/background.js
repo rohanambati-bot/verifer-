@@ -39,6 +39,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .catch((err) => {
             sendResponse({ success: false, error: err.message });
         });
+        return true;
+    }
+
     // 3. Health check with candidate URLs via background worker (avoids browser popup CORS)
     if (request.action === 'CHECK_HEALTH') {
         const url = request.url || 'http://127.0.0.1:8001';
