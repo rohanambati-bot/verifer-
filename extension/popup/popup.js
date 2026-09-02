@@ -2,12 +2,12 @@
 (function() {
     'use strict';
 
-    let activeBackendUrl = 'http://127.0.0.1:8000';
+    let activeBackendUrl = 'http://127.0.0.1:8001';
     const CANDIDATE_URLS = [
-        'http://127.0.0.1:8000',
         'http://127.0.0.1:8001',
-        'http://localhost:8000',
-        'http://localhost:8001'
+        'http://127.0.0.1:8000',
+        'http://localhost:8001',
+        'http://localhost:8000'
     ];
 
     const backendStatusEl = document.getElementById('backend-status');
@@ -97,8 +97,35 @@
 
     // Check backend health on load with auto-discovery across candidate ports
     async function checkBackendHealth() {
-        const urlsToTry = [activeBackendUrl, ...CANDIDATE_URLS.filter(u => u !== activeBackendUrl)];
-        for (const url of urlsToTry) {
+        const urlsToTry = [
+            activeBackendUrl,
+            'http://127.0.0.1:8001',
+            'http://127.0.0.1:8000',
+            'http://localhost:8001',
+            'http://localhost:8000'
+        ];
+        const uniqueUrls = Array.from(new Set(urlsToTry));
+
+        for (const url of uniqueUrls) {
+            // Strategy 1: Background service worker fetch (immune to popup CORS)
+            try {
+                const bgResp = await new Promise((resolve) => {
+                    chrome.runtime.sendMessage({ action: 'CHECK_HEALTH', url: url }, (resp) => {
+                        resolve(resp);
+                    });
+                });
+
+                if (bgResp && bgResp.success && bgResp.data) {
+                    activeBackendUrl = url;
+                    chrome.storage.local.set({ backendUrl: activeBackendUrl });
+                    backendStatusEl.className = 'backend-status online';
+                    backendTextEl.textContent = 'Backend Online';
+                    if (backendUrlEl) backendUrlEl.textContent = activeBackendUrl;
+                    return true;
+                }
+            } catch (e) {}
+
+            // Strategy 2: Direct fetch fallback
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 1200);

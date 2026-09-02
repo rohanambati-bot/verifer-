@@ -39,6 +39,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .catch((err) => {
             sendResponse({ success: false, error: err.message });
         });
+    // 3. Health check with candidate URLs via background worker (avoids browser popup CORS)
+    if (request.action === 'CHECK_HEALTH') {
+        const url = request.url || 'http://127.0.0.1:8001';
+        fetch(`${url}/api/status`, { method: 'GET' })
+        .then(async (res) => {
+            if (res.ok) {
+                const data = await res.json();
+                return sendResponse({ success: true, data: data });
+            }
+            sendResponse({ success: false, error: `HTTP ${res.status}` });
+        })
+        .catch((err) => {
+            sendResponse({ success: false, error: err.message });
+        });
         return true;
     }
 });
